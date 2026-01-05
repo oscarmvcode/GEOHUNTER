@@ -1,2 +1,61 @@
-🌍 GEOHUNTER: Extreme Time TrialGEOHUNTER es un simulador de reconocimiento geográfico de alto rendimiento. El objetivo es simple pero brutal: localizar coordenadas exactas en un mapa mundial bajo presión extrema de tiempo. Optimizado para una experiencia fluida tanto en escritorio como en dispositivos móviles.🚀 Características PrincipalesMotor Geodésico: Cálculo de distancias en tiempo real utilizando la fórmula de Haversine para una precisión milimétrica en kilómetros.Interfaz Ultra-Moderna: UI tipo "Glassmorphism" construida con Tailwind CSS para máxima legibilidad.Base de Datos Global: Más de 600 locaciones estratégicas precargadas (capitales, metrópolis y puntos clave).Mobile-First: Control táctil optimizado, eliminación de elementos redundantes y botones de gran tamaño para una jugabilidad perfecta en pulgares.Dificultad Progresiva: 4 niveles de intensidad, desde el modo Fácil (20s) hasta el modo ULTRA (3s).🛠️ Stack TécnicoEl proyecto se basa en una arquitectura ligera de alto rendimiento:Frontend: HTML5, CSS3 (Custom Glassmorphism).Framework CSS: Tailwind CSS (vía CDN para portabilidad).Motor de Mapas: Leaflet.js para renderizado de tiles interactivos.Lógica de Negocio: JavaScript Vanilla (ES6+).Capa de Datos: Geo-JSON estructurado internamente.📐 Lógica de PrecisiónEl sistema evalúa el éxito basándose en la distancia esférica entre el clic del usuario ($P_1$) y el objetivo real ($P_2$):$$d = 2r \arcsin\left(\sqrt{\sin^2\left(\frac{\phi_2 - \phi_1}{2}\right) + \cos(\phi_1) \cos(\phi_2) \sin^2\left(\frac{\lambda_2 - \lambda_1}{2}\right)}\right)$$Donde $r$ es el radio de la Tierra (6371 km). Un error mayor a 500km resulta en la pérdida de una vida.🕹️ Instalación y UsoNo requiere dependencias ni servidores complejos.Clona este repositorio o descarga el archivo .html.Asegúrate de que los archivos de recursos (si usas un lugares.js externo) estén en la misma carpeta.Abre el archivo en cualquier navegador moderno.Bash# Para pruebas rápidas usando Python
-python -m http.server 8000
+# 🌍 GEOHUNTER: Extreme Time Trial
+
+**GEOHUNTER** es un simulador de reconocimiento geográfico de alto rendimiento. El desafío consiste en localizar coordenadas exactas en un mapa mundial bajo presión de tiempo extrema. Este proyecto ha sido diseñado con un enfoque **Mobile-First**, garantizando una respuesta táctil ágil y una interfaz limpia.
+
+---
+
+## 🚀 Características Principales
+
+* **Motor Geodésico:** Cálculo de distancias en tiempo real utilizando la fórmula de Haversine para una precisión milimétrica.
+* **Interfaz Modernista:** UI basada en *Glassmorphism* (efecto cristal) construida con **Tailwind CSS**.
+* **Base de Datos Global:** Más de 600 locaciones estratégicas precargadas (capitales, metrópolis y puntos clave).
+* **Optimización Móvil:** Control táctil adaptativo, bloqueo de zoom accidental y botones de gran tamaño para jugabilidad con pulgares.
+* **Dificultad Progresiva:** 4 niveles de intensidad:
+    * 🟢 **FÁCIL:** 20 segundos.
+    * 🟡 **MEDIO:** 10 segundos.
+    * 🟠 **DIFÍCIL:** 5 segundos.
+    * 🔴 **ULTRA:** 3 segundos.
+
+---
+
+## 🛠️ Stack Técnico
+
+El proyecto utiliza una arquitectura ligera para asegurar la carga instantánea:
+
+* **Frontend:** HTML5 / CSS3 Puro.
+* **Estilos:** [Tailwind CSS](https://tailwindcss.com/) (Framework de utilidad).
+* **Mapas:** [Leaflet.js](https://leafletjs.com/) (Biblioteca de mapas interactivos de código abierto).
+* **Lógica:** JavaScript Vanilla (ES6+).
+
+---
+
+## 📐 Lógica de Precisión
+
+El sistema evalúa el éxito basándose en la distancia esférica entre el clic del usuario y el objetivo real. 
+
+
+
+Se utiliza la constante del radio terrestre $R = 6371$ km. Si el usuario marca un punto a más de **500 km** de distancia, se descuenta una vida automáticamente.
+
+---
+
+## 📱 Guía de Optimización Mobile
+
+| Característica | Implementación |
+| :--- | :--- |
+| **Viewport** | Ajustado para evitar el re-escalado del navegador. |
+| **Interacción** | Eventos `click` optimizados para respuesta táctil rápida. |
+| **UI Dinámica** | El HUD se adapta automáticamente a pantallas desde 320px. |
+| **Rendimiento** | Renderizado de tiles de mapa optimizado para bajo consumo de datos. |
+
+---
+
+## 🕹️ Instalación
+
+1. Descarga el archivo `index.html`.
+2. Asegúrate de tener conexión a internet (para cargar los estilos y el mapa).
+3. Abre el archivo en tu navegador favorito (Chrome, Safari o Firefox recomendado).
+
+---
+
+**GEOHUNTER** - *Desarrollado para mentes rápidas y amantes de la geografía.*
