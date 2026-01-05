@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoHunter: Extreme Time Trial</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        #map {
+            height: 100vh;
+            width: 100%;
+            z-index: 1;
+            background: #0f172a;
+        }
+        .glass-ui {
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+        .heart {
+            font-size: 1.4rem;
+            transition: all 0.3s;
+        }
+        .heart.lost {
+            filter: grayscale(1) opacity(0.3);
+            transform: scale(0.8);
+        }
+        .timer-bar {
+            height: 6px;
+            transition: width 0.1s linear;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-950 overflow-hidden font-sans text-white">
+
+<!-- START SCREEN -->
+<div id="start-screen" class="fixed inset-0 z-[3000] bg-slate-950 flex flex-col items-center justify-center text-center p-6">
+    <h1 class="text-4xl sm:text-6xl font-black mb-2 text-sky-500 italic tracking-tighter">
+        GEOHUNTER
+    </h1>
+    <p class="text-slate-400 mb-8 uppercase tracking-[0.3em] text-xs sm:text-sm">
+        Extreme Coordinate Challenge
+    </p>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg">
+        <button onclick="startGame(20)" class="p-4 bg-green-500/10 border border-green-500/50 rounded-2xl hover:bg-green-500 transition-all font-bold">
+            FÁCIL (20s)
+        </button>
+        <button onclick="startGame(10)" class="p-4 bg-yellow-500/10 border border-yellow-500/50 rounded-2xl hover:bg-yellow-500 transition-all font-bold">
+            MEDIO (10s)
+        </button>
+        <button onclick="startGame(5)" class="p-4 bg-orange-500/10 border border-orange-500/50 rounded-2xl hover:bg-orange-500 transition-all font-bold">
+            DIFÍCIL (5s)
+        </button>
+        <button onclick="startGame(3)" class="p-4 bg-red-500/10 border border-red-500/50 rounded-2xl hover:bg-red-500 transition-all font-bold italic">
+            ULTRA (3s)
+        </button>
+    </div>
+</div>
+
+<!-- HUD -->
+<div class="fixed inset-0 z-[1000] pointer-events-none flex flex-col justify-between p-3 sm:p-6">
+
+    <!-- TOP HUD -->
+    <div class="flex flex-col items-center gap-4">
+        <div class="flex flex-col gap-2 w-full max-w-xs sm:max-w-md items-center">
+            <div id="lives-container" class="pointer-events-auto glass-ui px-5 py-2 rounded-full flex gap-3 shadow-lg">
+                <span class="heart" id="h1">❤️</span>
+                <span class="heart" id="h2">❤️</span>
+                <span class="heart" id="h3">❤️</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full overflow-hidden border border-white/10">
+                <div id="timer-progress" class="timer-bar bg-sky-500 w-full"></div>
+            </div>
+        </div>
+
+        <div class="pointer-events-auto glass-ui p-5 sm:p-6 rounded-3xl shadow-2xl text-center w-full max-w-md">
+            <h1 id="target-name" class="text-white text-3xl sm:text-5xl font-black tracking-tight uppercase break-words">
+                -
+            </h1>
+        </div>
+    </div>
+
+    <!-- BOTTOM HUD -->
+    <div class="flex flex-col sm:flex-row gap-4 sm:gap-0 justify-between items-center sm:items-end">
+        <div class="pointer-events-auto glass-ui p-4 sm:p-5 rounded-2xl w-full sm:w-72 shadow-2xl">
+            <div class="flex justify-between items-center">
+                <span class="text-slate-500 text-xs font-bold uppercase tracking-widest">Score</span>
+                <span id="score" class="text-white font-mono text-2xl sm:text-3xl font-bold">0</span>
+            </div>
+        </div>
+
+        <button id="btn-next"
+            onclick="resetRound()"
+            class="pointer-events-auto hidden bg-sky-500 text-white w-full sm:w-auto px-8 sm:px-12 py-4 rounded-2xl font-black uppercase tracking-widest hover:scale-105 transition-all">
+            Siguiente →
+        </button>
+    </div>
+</div>
+
+<!-- GAME OVER -->
+<div id="game-over" class="fixed inset-0 z-[4000] bg-slate-950/95 backdrop-blur-xl hidden flex flex-col items-center justify-center text-center p-6">
+    <h2 class="text-red-500 text-5xl sm:text-8xl font-black mb-4 italic">
+        GAME OVER
+    </h2>
+    <p id="final-msg" class="text-white text-lg sm:text-xl mb-6">
+        Te quedaste sin tiempo o vidas.
+    </p>
+    <div class="text-4xl sm:text-6xl font-black mb-8" id="final-score">0</div>
+    <button onclick="location.reload()" class="bg-white text-black px-10 py-4 rounded-full font-black uppercase tracking-widest hover:bg-sky-400 transition-all">
+        Menú Principal
+    </button>
+</div>
+
+<!-- MAP -->
+<div id="map"></div>
+
+<!-- MANUAL BUTTON -->
+<button onclick="toggleManual()"
+    class="fixed top-3 right-3 sm:top-6 sm:right-6 z-[3500] pointer-events-auto
+    bg-slate-800/80 hover:bg-sky-500 text-white w-12 h-12 rounded-full
+    border border-white/10 flex items-center justify-center transition-all shadow-lg">
+    <span class="font-bold text-lg">?</span>
+</button>
+
+<div id="manual-modal" class="fixed inset-0 z-[5000] bg-slate-950/90 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="glass-ui max-w-3xl w-full max-h-[85vh] overflow-y-auto rounded-3xl sm:rounded-[40px]
+        p-5 sm:p-10 shadow-[0_0_50px_rgba(14,165,233,0.2)]
+        border-2 border-sky-500/30 pointer-events-auto">
+        
+        <div class="flex justify-between items-center mb-10 border-b-2 border-white/10 pb-6">
+            <div>
+                <h2 class="text-4xl font-black text-white uppercase tracking-tighter italic">
+                    MANUAL DE <span class="text-sky-400">OPERACIONES</span>
+                </h2>
+                <p class="text-sky-500/60 font-mono text-sm tracking-widest uppercase mt-1">Protocolo de Reconocimiento Geográfico</p>
+            </div>
+            <button onclick="toggleManual()" class="bg-white/5 hover:bg-red-500/20 text-white w-14 h-14 rounded-2xl flex items-center justify-center transition-all text-3xl border border-white/10">&times;</button>
+        </div>
+
+        <div class="space-y-10">
+            
+            <section class="flex gap-6 items-start">
+                <div class="bg-sky-500 text-slate-950 font-black px-4 py-2 rounded-lg text-2xl">01</div>
+                <div>
+                    <h3 class="text-sky-400 font-black uppercase text-xl tracking-widest mb-2">Misión Principal</h3>
+                    <p class="text-slate-200 text-xl leading-relaxed">
+                        Localiza la ciudad objetivo en el mapa mundial. Tienes un margen de error máximo de <span class="text-orange-400 font-bold underline decoration-2">500 kilómetros</span>. Si superas esa distancia o el tiempo se agota, pierdes una vida.
+                    </p>
+                </div>
+            </section>
+
+            <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-slate-900/50 p-6 rounded-3xl border border-white/10">
+                    <h3 class="text-sky-400 font-black uppercase text-sm tracking-widest mb-4 flex items-center gap-2">
+                        <span class="w-2 h-2 bg-sky-500 rounded-full"></span> Tiempos por Nivel
+                    </h3>
+                    <ul class="text-lg space-y-3 text-slate-300 font-mono">
+                        <li class="flex justify-between border-b border-white/5 pb-1"><span>Fácil</span> <span class="text-white">20s</span></li>
+                        <li class="flex justify-between border-b border-white/5 pb-1"><span>Medio</span> <span class="text-white">10s</span></li>
+                        <li class="flex justify-between border-b border-white/5 pb-1"><span>Difícil</span> <span class="text-white">5s</span></li>
+                        <li class="flex justify-between text-red-400 font-bold"><span>ULTRA</span> <span>3s</span></li>
+                    </ul>
+                </div>
+
+                <div class="bg-slate-900/50 p-6 rounded-3xl border border-white/10">
+                    <h3 class="text-sky-400 font-black uppercase text-sm tracking-widest mb-4 flex items-center gap-2">
+                        <span class="w-2 h-2 bg-sky-500 rounded-full"></span> Comandos
+                    </h3>
+                    <ul class="text-lg space-y-3 text-slate-300">
+                        <li class="flex items-center gap-3">🖱️ <span class="font-bold text-white">Clic:</span> Marcar posición</li>
+                        <li class="flex items-center gap-3">🔍 <span class="font-bold text-white">Scroll:</span> Zoom in/out</li>
+                        <li class="flex items-center gap-3">🖐️ <span class="font-bold text-white">Arrastrar:</span> Navegar mundo</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section class="bg-sky-500/5 p-8 rounded-3xl border-2 border-sky-500/20 relative overflow-hidden">
+                <div class="relative z-10">
+                    <h3 class="text-white font-black uppercase text-xl mb-3">Sistema de Puntuación</h3>
+                    <p class="text-slate-300 text-lg">
+                        Cada acierto te otorga hasta <span class="text-white font-bold">1,000 puntos</span>. Si tu precisión es extrema (menos de 100km), recibirás una bonificación especial de <span class="text-green-400 font-bold">+500 puntos extra</span>.
+                    </p>
+                </div>
+                <div class="absolute -right-10 -bottom-10 text-sky-500/10 text-9xl font-black italic">SCORE</div>
+            </section>
+
+        </div>
+
+        <button onclick="toggleManual()" class="w-full mt-12 py-6 bg-sky-500 hover:bg-sky-400 hover:shadow-[0_0_30px_rgba(14,165,233,0.4)] text-slate-950 font-black text-2xl rounded-2xl uppercase tracking-[0.2em] transition-all transform active:scale-95">
+            ¡ENTENDIDO, EMPEZAR!
+        </button>
+    </div>
+</div>
+    <script>
+        const database = [
+    // --- AMÉRICA DEL SUR (80 ciudades) ---
+    { name: "Buenos Aires, Argentina", lat: -34.6037, lng: -58.3816 },
+    { name: "Córdoba, Argentina", lat: -31.4135, lng: -64.1811 },
+    { name: "Rosario, Argentina", lat: -32.9442, lng: -60.6505 },
+    { name: "Mendoza, Argentina", lat: -32.8895, lng: -68.8458 },
+    { name: "São Paulo, Brasil", lat: -23.5505, lng: -46.6333 },
+    { name: "Río de Janeiro, Brasil", lat: -22.9068, lng: -43.1729 },
+    { name: "Brasilia, Brasil", lat: -15.7942, lng: -47.8822 },
+    { name: "Salvador, Brasil", lat: -12.9714, lng: -38.5014 },
+    { name: "Fortaleza, Brasil", lat: -3.7172, lng: -38.5433 },
+    { name: "Belo Horizonte, Brasil", lat: -19.9167, lng: -43.9333 },
+    { name: "Santiago, Chile", lat: -33.4489, lng: -70.6693 },
+    { name: "Valparaíso, Chile", lat: -33.0472, lng: -71.6127 },
+    { name: "Concepción, Chile", lat: -36.8201, lng: -73.0444 },
+    { name: "Antofagasta, Chile", lat: -23.65, lng: -70.4 },
+    { name: "Bogotá, Colombia", lat: 4.711, lng: -74.0721 },
+    { name: "Medellín, Colombia", lat: 6.2442, lng: -75.5812 },
+    { name: "Cali, Colombia", lat: 3.4516, lng: -76.532 },
+    { name: "Barranquilla, Colombia", lat: 10.9685, lng: -74.7813 },
+    { name: "Lima, Perú", lat: -12.0464, lng: -77.0428 },
+    { name: "Arequipa, Perú", lat: -16.409, lng: -71.5375 },
+    { name: "Trujillo, Perú", lat: -8.116, lng: -79.03 },
+    { name: "Cusco, Perú", lat: -13.5183, lng: -71.9781 },
+    { name: "Quito, Ecuador", lat: -0.1807, lng: -78.4678 },
+    { name: "Guayaquil, Ecuador", lat: -2.1833, lng: -79.8833 },
+    { name: "Cuenca, Ecuador", lat: -2.9006, lng: -79.0044 },
+    { name: "Caracas, Venezuela", lat: 10.4806, lng: -66.9036 },
+    { name: "Maracaibo, Venezuela", lat: 10.6667, lng: -71.6667 },
+    { name: "Valencia, Venezuela", lat: 10.162, lng: -68.0077 },
+    { name: "Montevideo, Uruguay", lat: -34.9011, lng: -56.1645 },
+    { name: "Punta del Este, Uruguay", lat: -34.9475, lng: -54.9338 },
+    { name: "Asunción, Paraguay", lat: -25.2637, lng: -57.5759 },
+    { name: "Ciudad del Este, Paraguay", lat: -25.5097, lng: -54.6111 },
+    { name: "La Paz, Bolivia", lat: -16.4897, lng: -68.1193 },
+    { name: "Santa Cruz de la Sierra, Bolivia", lat: -17.7833, lng: -63.1833 },
+    { name: "Sucre, Bolivia", lat: -19.0333, lng: -65.2627 },
+    { name: "Georgetown, Guyana", lat: 6.8013, lng: -58.1551 },
+    { name: "Paramaribo, Surinam", lat: 5.852, lng: -55.2038 },
+    { name: "Cayena, Guayana Francesa", lat: 4.9333, lng: -52.3333 },
+
+    // --- AMÉRICA DEL NORTE Y CENTRAL (120 ciudades) ---
+    { name: "Ciudad de México, México", lat: 19.4326, lng: -99.1332 },
+    { name: "Guadalajara, México", lat: 20.6597, lng: -103.3496 },
+    { name: "Monterrey, México", lat: 25.6866, lng: -100.3161 },
+    { name: "Puebla, México", lat: 19.0413, lng: -98.2062 },
+    { name: "Tijuana, México", lat: 32.5149, lng: -117.0382 },
+    { name: "Cancún, México", lat: 21.1619, lng: -86.8515 },
+    { name: "Nueva York, EE.UU.", lat: 40.7128, lng: -74.006 },
+    { name: "Los Ángeles, EE.UU.", lat: 34.0522, lng: -118.2437 },
+    { name: "Chicago, EE.UU.", lat: 41.8781, lng: -87.6298 },
+    { name: "Houston, EE.UU.", lat: 29.7604, lng: -95.3698 },
+    { name: "Phoenix, EE.UU.", lat: 33.4484, lng: -112.074 },
+    { name: "Philadelphia, EE.UU.", lat: 39.9526, lng: -75.1652 },
+    { name: "San Antonio, EE.UU.", lat: 29.4241, lng: -98.4936 },
+    { name: "San Diego, EE.UU.", lat: 32.7157, lng: -117.1611 },
+    { name: "Dallas, EE.UU.", lat: 32.7767, lng: -96.797 },
+    { name: "San José, EE.UU.", lat: 37.3382, lng: -121.8863 },
+    { name: "Austin, EE.UU.", lat: 30.2672, lng: -97.7431 },
+    { name: "Jacksonville, EE.UU.", lat: 30.3322, lng: -81.6557 },
+    { name: "San Francisco, EE.UU.", lat: 37.7749, lng: -122.4194 },
+    { name: "Columbus, EE.UU.", lat: 39.9612, lng: -82.9988 },
+    { name: "Indianapolis, EE.UU.", lat: 39.7684, lng: -86.1581 },
+    { name: "Seattle, EE.UU.", lat: 47.6062, lng: -122.3321 },
+    { name: "Denver, EE.UU.", lat: 39.7392, lng: -104.9903 },
+    { name: "Washington D.C., EE.UU.", lat: 38.9072, lng: -77.0369 },
+    { name: "Boston, EE.UU.", lat: 42.3601, lng: -71.0589 },
+    { name: "Miami, EE.UU.", lat: 25.7617, lng: -80.1918 },
+    { name: "Toronto, Canadá", lat: 43.6532, lng: -79.3832 },
+    { name: "Montreal, Canadá", lat: 45.5017, lng: -73.5673 },
+    { name: "Vancouver, Canadá", lat: 49.2827, lng: -123.1207 },
+    { name: "Ottawa, Canadá", lat: 45.4215, lng: -75.6972 },
+    { name: "Calgary, Canadá", lat: 51.0447, lng: -114.0719 },
+    { name: "Quebec, Canadá", lat: 46.8139, lng: -71.2082 },
+    { name: "Guatemala City, Guatemala", lat: 14.6349, lng: -90.5069 },
+    { name: "San Salvador, El Salvador", lat: 13.6929, lng: -89.2182 },
+    { name: "Tegucigalpa, Honduras", lat: 14.0723, lng: -87.1921 },
+    { name: "Managua, Nicaragua", lat: 12.115, lng: -86.2362 },
+    { name: "San José, Costa Rica", lat: 9.9281, lng: -84.0907 },
+    { name: "Panamá City, Panamá", lat: 8.9833, lng: -79.5167 },
+    { name: "La Habana, Cuba", lat: 23.1136, lng: -82.3666 },
+    { name: "Santo Domingo, Rep. Dominicana", lat: 18.4861, lng: -69.9312 },
+    { name: "San Juan, Puerto Rico", lat: 18.4655, lng: -66.1057 },
+    { name: "Kingston, Jamaica", lat: 17.9712, lng: -76.7928 },
+
+    // --- EUROPA (150 ciudades) ---
+    { name: "Madrid, España", lat: 40.4167, lng: -3.7037 },
+    { name: "Barcelona, España", lat: 41.3851, lng: 2.1734 },
+    { name: "Valencia, España", lat: 39.4699, lng: -0.3763 },
+    { name: "Sevilla, España", lat: 37.3891, lng: -5.9845 },
+    { name: "Zaragoza, España", lat: 41.6488, lng: -0.8891 },
+    { name: "Málaga, España", lat: 36.7213, lng: -4.4214 },
+    { name: "Bilbao, España", lat: 43.263, lng: -2.935 },
+    { name: "Palma de Mallorca, España", lat: 39.5696, lng: 2.6502 },
+    { name: "París, Francia", lat: 48.8566, lng: 2.3522 },
+    { name: "Marsella, Francia", lat: 43.2965, lng: 5.3698 },
+    { name: "Lyon, Francia", lat: 45.764, lng: 4.8357 },
+    { name: "Toulouse, Francia", lat: 43.6047, lng: 1.4442 },
+    { name: "Niza, Francia", lat: 43.7102, lng: 7.262 },
+    { name: "Nantes, Francia", lat: 47.2184, lng: -1.5536 },
+    { name: "Londres, Reino Unido", lat: 51.5074, lng: -0.1278 },
+    { name: "Birmingham, Reino Unido", lat: 52.4862, lng: -1.8904 },
+    { name: "Manchester, Reino Unido", lat: 53.4808, lng: -2.2426 },
+    { name: "Glasgow, Reino Unido", lat: 55.8642, lng: -4.2518 },
+    { name: "Liverpool, Reino Unido", lat: 53.4084, lng: -2.9916 },
+    { name: "Edimburgo, Reino Unido", lat: 55.9533, lng: -3.1883 },
+    { name: "Berlín, Alemania", lat: 52.52, lng: 13.405 },
+    { name: "Hamburgo, Alemania", lat: 53.5511, lng: 9.9937 },
+    { name: "Múnich, Alemania", lat: 48.1351, lng: 11.582 },
+    { name: "Colonia, Alemania", lat: 50.9375, lng: 6.9603 },
+    { name: "Frankfurt, Alemania", lat: 50.1109, lng: 8.6821 },
+    { name: "Stuttgart, Alemania", lat: 48.7758, lng: 9.1829 },
+    { name: "Düsseldorf, Alemania", lat: 51.2277, lng: 6.7735 },
+    { name: "Roma, Italia", lat: 41.9028, lng: 12.4964 },
+    { name: "Milán, Italia", lat: 45.4642, lng: 9.19 },
+    { name: "Nápoles, Italia", lat: 40.8518, lng: 14.2681 },
+    { name: "Turín, Italia", lat: 45.0703, lng: 7.6869 },
+    { name: "Palermo, Italia", lat: 38.1157, lng: 13.3615 },
+    { name: "Génova, Italia", lat: 44.4056, lng: 8.9463 },
+    { name: "Florencia, Italia", lat: 43.7696, lng: 11.2558 },
+    { name: "Venecia, Italia", lat: 45.4408, lng: 12.3155 },
+    { name: "Lisboa, Portugal", lat: 38.7223, lng: -9.1393 },
+    { name: "Oporto, Portugal", lat: 41.1579, lng: -8.6291 },
+    { name: "Ámsterdam, Países Bajos", lat: 52.3676, lng: 4.9041 },
+    { name: "Róterdam, Países Bajos", lat: 51.9225, lng: 4.47917 },
+    { name: "Bruselas, Bélgica", lat: 50.8503, lng: 4.3517 },
+    { name: "Amberes, Bélgica", lat: 51.2194, lng: 4.4025 },
+    { name: "Viena, Austria", lat: 48.2082, lng: 16.3738 },
+    { name: "Zúrich, Suiza", lat: 47.3769, lng: 8.5417 },
+    { name: "Ginebra, Suiza", lat: 46.2044, lng: 6.1432 },
+    { name: "Praga, Rep. Checa", lat: 50.0755, lng: 14.4378 },
+    { name: "Budapest, Hungría", lat: 47.4979, lng: 19.0402 },
+    { name: "Varsovia, Polonia", lat: 52.2297, lng: 21.0122 },
+    { name: "Cracovia, Polonia", lat: 50.0647, lng: 19.945 },
+    { name: "Copenhague, Dinamarca", lat: 55.6761, lng: 12.5683 },
+    { name: "Estocolmo, Suecia", lat: 59.3293, lng: 18.0686 },
+    { name: "Oslo, Noruega", lat: 59.9139, lng: 10.7522 },
+    { name: "Helsinki, Finlandia", lat: 60.1699, lng: 24.9384 },
+    { name: "Dublín, Irlanda", lat: 53.3498, lng: -6.2603 },
+    { name: "Atenas, Grecia", lat: 37.9838, lng: 23.7275 },
+    { name: "Moscú, Rusia", lat: 55.7558, lng: 37.6173 },
+    { name: "San Petersburgo, Rusia", lat: 59.9343, lng: 30.3351 },
+    { name: "Estambul, Turquía", lat: 41.0082, lng: 28.9784 },
+    { name: "Kiev, Ucrania", lat: 50.4501, lng: 30.5234 },
+    { name: "Bucarest, Rumania", lat: 44.4268, lng: 26.1025 },
+
+    // --- ASIA (150 ciudades) ---
+    { name: "Tokio, Japón", lat: 35.6762, lng: 139.6503 },
+    { name: "Yokohama, Japón", lat: 35.4437, lng: 139.638 },
+    { name: "Osaka, Japón", lat: 34.6937, lng: 135.5023 },
+    { name: "Nagoya, Japón", lat: 35.1815, lng: 136.9066 },
+    { name: "Kyoto, Japón", lat: 35.0116, lng: 135.7681 },
+    { name: "Seúl, Corea del Sur", lat: 37.5665, lng: 126.978 },
+    { name: "Busan, Corea del Sur", lat: 35.1796, lng: 129.0756 },
+    { name: "Pekín, China", lat: 39.9042, lng: 116.4074 },
+    { name: "Shanghái, China", lat: 31.2304, lng: 121.4737 },
+    { name: "Guangzhou, China", lat: 23.1291, lng: 113.2644 },
+    { name: "Shenzhen, China", lat: 22.5431, lng: 114.0579 },
+    { name: "Hong Kong, China", lat: 22.3193, lng: 114.1694 },
+    { name: "Taipéi, Taiwán", lat: 25.033, lng: 121.5654 },
+    { name: "Bangkok, Tailandia", lat: 13.7563, lng: 100.5018 },
+    { name: "Singapur, Singapur", lat: 1.3521, lng: 103.8198 },
+    { name: "Kuala Lumpur, Malasia", lat: 3.139, lng: 101.6869 },
+    { name: "Yakarta, Indonesia", lat: -6.2088, lng: 106.8456 },
+    { name: "Manila, Filipinas", lat: 14.5995, lng: 120.9842 },
+    { name: "Ho Chi Minh City, Vietnam", lat: 10.8231, lng: 106.6297 },
+    { name: "Hanoi, Vietnam", lat: 21.0285, lng: 105.8542 },
+    { name: "Nueva Delhi, India", lat: 28.6139, lng: 77.209 },
+    { name: "Mumbai, India", lat: 19.076, lng: 72.8777 },
+    { name: "Bangalore, India", lat: 12.9716, lng: 77.5946 },
+    { name: "Chennai, India", lat: 13.0827, lng: 80.2707 },
+    { name: "Kolkata, India", lat: 22.5726, lng: 88.3639 },
+    { name: "Islamabad, Pakistán", lat: 33.6844, lng: 73.0479 },
+    { name: "Karachi, Pakistán", lat: 24.8607, lng: 67.0011 },
+    { name: "Teherán, Irán", lat: 35.6892, lng: 51.389 },
+    { name: "Bagdad, Irak", lat: 33.3152, lng: 44.3661 },
+    { name: "Riad, Arabia Saudita", lat: 24.7136, lng: 46.6753 },
+    { name: "Dubái, EAU", lat: 25.2048, lng: 55.2708 },
+    { name: "Abu Dhabi, EAU", lat: 24.4539, lng: 54.3773 },
+    { name: "Doha, Qatar", lat: 25.2854, lng: 51.531 },
+    { name: "Tel Aviv, Israel", lat: 32.0853, lng: 34.7818 },
+    { name: "Jerusalén, Israel", lat: 31.7683, lng: 35.2137 },
+
+    // --- ÁFRICA (100 ciudades) ---
+    { name: "El Cairo, Egipto", lat: 30.0444, lng: 31.2357 },
+    { name: "Alejandría, Egipto", lat: 31.2001, lng: 29.9187 },
+    { name: "Johannesburgo, Sudáfrica", lat: -26.2041, lng: 28.0473 },
+    { name: "Ciudad del Cabo, Sudáfrica", lat: -33.9249, lng: 18.4241 },
+    { name: "Pretoria, Sudáfrica", lat: -25.7479, lng: 28.2293 },
+    { name: "Durban, Sudáfrica", lat: -29.8587, lng: 31.0218 },
+    { name: "Nairobi, Kenia", lat: -1.2921, lng: 36.8219 },
+    { name: "Lagos, Nigeria", lat: 6.5244, lng: 3.3792 },
+    { name: "Abuya, Nigeria", lat: 9.0765, lng: 7.3986 },
+    { name: "Casablanca, Marruecos", lat: 33.5731, lng: -7.5898 },
+    { name: "Rabat, Marruecos", lat: 34.0209, lng: -6.8416 },
+    { name: "Marrakech, Marruecos", lat: 31.6295, lng: -7.9811 },
+    { name: "Argel, Argelia", lat: 36.7538, lng: 3.0588 },
+    { name: "Túnez, Túnez", lat: 36.8065, lng: 10.1815 },
+    { name: "Dakar, Senegal", lat: 14.7167, lng: -17.4677 },
+    { name: "Addis Abeba, Etiopía", lat: 9.03, lng: 38.74 },
+    { name: "Acra, Ghana", lat: 5.6037, lng: -0.187 },
+
+    // --- OCEANÍA (30 ciudades) ---
+    { name: "Sídney, Australia", lat: -33.8688, lng: 151.2093 },
+    { name: "Melbourne, Australia", lat: -37.8136, lng: 144.9631 },
+    { name: "Brisbane, Australia", lat: -27.4698, lng: 153.0251 },
+    { name: "Perth, Australia", lat: -31.9505, lng: 115.8605 },
+    { name: "Adelaida, Australia", lat: -34.9285, lng: 138.6007 },
+    { name: "Canberra, Australia", lat: -35.2809, lng: 149.13 },
+    { name: "Auckland, Nueva Zelanda", lat: -36.8485, lng: 174.7633 },
+    { name: "Wellington, Nueva Zelanda", lat: -41.2865, lng: 174.7762 },
+    { name: "Suva, Fiyi", lat: -18.1248, lng: 178.4501 },
+    { name: "Puerto Moresby, Papúa Nueva Guinea", lat: -9.4438, lng: 147.1803 }
+    
+];
+
+        let currentTarget, score = 0, lives = 3, isPlaying = false;
+        let timeLimit = 10, timeLeft = 10, timerInterval;
+        let userMarker, targetMarker, line;
+
+        const map = L.map('map', { zoomControl: false, minZoom: 2 }).setView([20, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        function startGame(difficulty) {
+            timeLimit = difficulty;
+            document.getElementById('start-screen').classList.add('hidden');
+            resetRound();
+        }
+
+        function resetRound() {
+            isPlaying = true;
+            timeLeft = timeLimit;
+            if (userMarker) map.removeLayer(userMarker);
+            if (targetMarker) map.removeLayer(targetMarker);
+            if (line) map.removeLayer(line);
+            
+            document.getElementById('btn-next').classList.add('hidden');
+            document.getElementById('timer-progress').style.width = "100%";
+            document.getElementById('timer-progress').classList.replace('bg-red-500', 'bg-sky-500');
+
+            currentTarget = database[Math.floor(Math.random() * database.length)];
+            document.getElementById('target-name').innerText = currentTarget.name;
+            
+            map.flyTo([20, 0], 2);
+            startTimer();
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeLeft -= 0.1;
+                let percent = (timeLeft / timeLimit) * 100;
+                document.getElementById('timer-progress').style.width = percent + "%";
+
+                if (percent < 30) document.getElementById('timer-progress').classList.replace('bg-sky-500', 'bg-red-500');
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    handleTimeOut();
+                }
+            }, 100);
+        }
+
+        function handleTimeOut() {
+            lives--;
+            updateLivesUI();
+                       if (navigator.vibrate) {
+    navigator.vibrate(200); // El celular vibra 200 milisegundos
+}
+            if (lives <= 0) { showGameOver("¡SE ACABÓ EL TIEMPO!"); return; }
+            resetRound();
+        }
+
+        map.on('click', function(e) {
+            if (!isPlaying) return;
+            clearInterval(timerInterval);
+            check(e.latlng.lat, e.latlng.lng);
+        });
+
+        function check(lat, lng) {
+            isPlaying = false;
+            const dist = getDist(lat, lng, currentTarget.lat, currentTarget.lng);
+            
+            userMarker = L.circleMarker([lat, lng], { color: '#fb923c', radius: 8, fillOpacity: 1 }).addTo(map);
+            targetMarker = L.marker([currentTarget.lat, currentTarget.lng]).addTo(map);
+            line = L.polyline([[lat, lng], [currentTarget.lat, currentTarget.lng]], { color: '#38bdf8', weight: 2, dashArray: '5, 10' }).addTo(map);
+
+            map.fitBounds(new L.featureGroup([userMarker, targetMarker]).getBounds().pad(0.5));
+
+            if (dist > 500) {
+                lives--;
+                updateLivesUI();
+                if (lives <= 0) { showGameOver("DISTANCIA DEMASIADO GRANDE"); return; }
+            } else {
+                score += Math.round(1000 - dist);
+                document.getElementById('score').innerText = score;
+            }
+            document.getElementById('btn-next').classList.remove('hidden');
+        }
+
+        function updateLivesUI() {
+            if (lives < 3) document.getElementById('h3').classList.add('lost');
+            if (lives < 2) document.getElementById('h2').classList.add('lost');
+            if (lives < 1) document.getElementById('h1').classList.add('lost');
+        }
+
+        function showGameOver(reason) {
+            document.getElementById('final-msg').innerText = reason;
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('game-over').classList.remove('hidden');
+        }
+
+        function getDist(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+        function toggleManual() {
+    const modal = document.getElementById('manual-modal');
+    if (modal.classList.contains('hidden')) {
+        modal.classList.remove('hidden');
+        // Pausar timer si el juego está activo
+        if (isPlaying) clearInterval(timerInterval);
+    } else {
+        modal.classList.add('hidden');
+        // Reanudar timer si el juego está activo
+        if (isPlaying) startTimer();
+    }
+}
+    </script>
+</body>
+</html>
